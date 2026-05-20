@@ -5,6 +5,9 @@ procurement-app/backend/node_modules/
 # Build output
 frontend/dist/
 
+# Backend persistent database
+procurement-app/backend/data.sqlite
+
 # OS files
 .DS_Store
 

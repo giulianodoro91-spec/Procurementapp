@@ -1,90 +1,50 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
+const multer = require('multer');
+const xlsx = require('xlsx');
+const initialData = require('./database');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.send('Procurement App Backend Running');
-});
-
-const db = require('./database');
-
-const multer = require('multer');
-const xlsx = require('xlsx');
+const dbPath = path.join(__dirname, 'data.sqlite');
+const db = new sqlite3.Database(dbPath);
 const upload = multer();
 
-// Simple read endpoints
-app.get('/api/products', (req, res) => {
-  res.json(db.products);
+const run = (sql, params = []) => new Promise((resolve, reject) => {
+  db.run(sql, params, function (err) {
+    if (err) return reject(err);
+    resolve(this);
+  });
 });
 
-app.get('/api/ingredients', (req, res) => {
-  res.json(db.ingredients);
+const get = (sql, params = []) => new Promise((resolve, reject) => {
+  db.get(sql, params, (err, row) => {
+    if (err) return reject(err);
+    resolve(row);
+  });
 });
 
-app.get('/api/bom', (req, res) => {
-  const bomWithNames = db.bom.map(row => {
-    const product = db.products.find(p => p.id === row.productId)
-    const ingredient = db.ingredients.find(i => i.id === row.ingredientId)
-    const { unit, ...bomRow } = row
-    return {
-      ...bomRow,
-      productName: product?.name || 'Unknown',
-      ingredientName: ingredient?.name || 'Unknown',
-      ingredientUnit: ingredient?.unit || 'unit'
-    }
-  })
-  res.json(bomWithNames);
+const all = (sql, params = []) => new Promise((resolve, reject) => {
+  db.all(sql, params, (err, rows) => {
+    if (err) return reject(err);
+    resolve(rows);
+  });
 });
 
-// Clear BOM rows or clear all data when ?full=true
-app.post('/api/bom/clear', (req, res) => {
-  const full = req.query.full === 'true'
-  db.bom.length = 0
-  if (full) {
-    db.products.length = 0
-    db.ingredients.length = 0
-    db.forecast.length = 0
-  }
-  res.json({ ok: true, cleared: { bom: true, products: full, ingredients: full, forecast: full } })
-})
-
-app.get('/api/forecast', (req, res) => {
-  res.json(db.forecast);
-});
-
-// Add or replace forecast entries (array)
-app.post('/api/forecast', (req, res) => {
-  const entries = req.body;
-  if (!Array.isArray(entries)) return res.status(400).json({ error: 'Array expected' });
-  // naive replace for simplicity
-  db.forecast.length = 0;
-  entries.forEach(e => db.forecast.push(e));
-  res.json({ ok: true, forecast: db.forecast });
-});
-
-// Import BOM rows (array of {productId, ingredientId, quantity})
-app.post('/api/bom/import', (req, res) => {
-  const rows = req.body;
-  if (!Array.isArray(rows)) return res.status(400).json({ error: 'Array expected' });
-  // append rows
-  rows.forEach(r => db.bom.push(r));
-  res.json({ ok: true, bom: db.bom });
-});
-
-const normalize = (value) => typeof value === 'string' ? value.trim() : value
+const normalize = (value) => typeof value === 'string' ? value.trim() : value;
 
 const getField = (row, ...fieldNames) => {
   for (const field of fieldNames) {
-    if (field in row && row[field] != null) return row[field]
+    if (field in row && row[field] != null) return row[field];
   }
-  return undefined
-}
+  return undefined;
+};
 
-const normalizeKey = (key) => String(key).trim()
+const normalizeKey = (key) => String(key).trim();
 
 const getExtraFields = (row) => {
   const known = new Set([
@@ -95,117 +55,292 @@ const getExtraFields = (row) => {
     'quantity', 'Quantity', 'qty', 'Qty', 'amount', 'Amount',
     'unit', 'Unit', 'UoM', 'uom', 'UOM',
     'category', 'Category', 'notes', 'Notes'
-  ])
+  ]);
   return Object.entries(row).reduce((extra, [key, value]) => {
     if (!known.has(key)) {
-      extra[normalizeKey(key)] = value
+      extra[normalizeKey(key)] = value;
     }
-    return extra
-  }, {})
-}
+    return extra;
+  }, {});
+};
 
-const findOrCreateProduct = (name) => {
-  if (!name) return null
-  const normalized = String(name).trim()
-  let product = db.products.find(p => p.name.toLowerCase() === normalized.toLowerCase())
+const findProductById = async (id) => {
+  if (!id) return null;
+  return await get('SELECT * FROM products WHERE id = ?', [id]);
+};
+
+const findProductByName = async (name) => {
+  if (!name) return null;
+  return await get('SELECT * FROM products WHERE lower(name) = lower(?)', [name.trim()]);
+};
+
+const createProduct = async (name) => {
+  const result = await run('INSERT INTO products (name) VALUES (?)', [name.trim()]);
+  return { id: result.lastID, name: name.trim() };
+};
+
+const findOrCreateProduct = async (name) => {
+  const normalized = normalize(name);
+  if (!normalized) return null;
+  let product = await findProductByName(normalized);
   if (!product) {
-    product = { id: db.products.length + 1, name: normalized }
-    db.products.push(product)
+    product = await createProduct(normalized);
   }
-  return product
-}
+  return product;
+};
 
-const findOrCreateIngredient = (name, unit) => {
-  if (!name) return null
-  const normalized = String(name).trim()
-  let ingredient = db.ingredients.find(i => i.name.toLowerCase() === normalized.toLowerCase())
+const findIngredientById = async (id) => {
+  if (!id) return null;
+  return await get('SELECT * FROM ingredients WHERE id = ?', [id]);
+};
+
+const findIngredientByName = async (name) => {
+  if (!name) return null;
+  return await get('SELECT * FROM ingredients WHERE lower(name) = lower(?)', [name.trim()]);
+};
+
+const createIngredient = async (name, unit) => {
+  const result = await run('INSERT INTO ingredients (name, unit) VALUES (?, ?)', [name.trim(), unit || 'unit']);
+  return { id: result.lastID, name: name.trim(), unit: unit || 'unit' };
+};
+
+const findOrCreateIngredient = async (name, unit) => {
+  const normalized = normalize(name);
+  if (!normalized) return null;
+  let ingredient = await findIngredientByName(normalized);
   if (!ingredient) {
-    ingredient = { id: db.ingredients.length + 1, name: normalized, unit: unit || 'unit' }
-    db.ingredients.push(ingredient)
+    ingredient = await createIngredient(normalized, unit);
   } else if (!ingredient.unit && unit) {
-    ingredient.unit = unit
+    await run('UPDATE ingredients SET unit = ? WHERE id = ?', [unit, ingredient.id]);
+    ingredient.unit = unit;
   }
-  return ingredient
-}
+  return ingredient;
+};
 
-// Accept an Excel file upload (multipart/form-data, field name: 'file') and parse BOM rows
-app.post('/api/bom/upload', upload.single('file'), (req, res) => {
+const getBomWithNames = async () => {
+  return await all(
+    `SELECT bom.productId, bom.ingredientId, bom.quantity, p.name AS productName, i.name AS ingredientName, i.unit AS ingredientUnit
+     FROM bom
+     JOIN products p ON p.id = bom.productId
+     JOIN ingredients i ON i.id = bom.ingredientId
+     ORDER BY bom.id`
+  );
+};
+
+const initDb = async () => {
+  await run(`CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS ingredients (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    unit TEXT NOT NULL DEFAULT 'unit'
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS bom (
+    id INTEGER PRIMARY KEY,
+    productId INTEGER NOT NULL,
+    ingredientId INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    FOREIGN KEY(productId) REFERENCES products(id),
+    FOREIGN KEY(ingredientId) REFERENCES ingredients(id)
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS forecast (
+    id INTEGER PRIMARY KEY,
+    productId INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    month TEXT
+  )`);
+
+  const row = await get('SELECT COUNT(*) AS count FROM products');
+  if (row?.count === 0 && initialData.products.length) {
+    for (const product of initialData.products) {
+      await run('INSERT INTO products (id, name) VALUES (?, ?)', [product.id, product.name]);
+    }
+    for (const ingredient of initialData.ingredients) {
+      await run('INSERT INTO ingredients (id, name, unit) VALUES (?, ?, ?)', [ingredient.id, ingredient.name, ingredient.unit]);
+    }
+    for (const bomRow of initialData.bom) {
+      await run('INSERT INTO bom (productId, ingredientId, quantity) VALUES (?, ?, ?)', [bomRow.productId, bomRow.ingredientId, bomRow.quantity]);
+    }
+    for (const forecastRow of initialData.forecast) {
+      await run('INSERT INTO forecast (productId, quantity, month) VALUES (?, ?, ?)', [forecastRow.productId, forecastRow.quantity, forecastRow.month]);
+    }
+  }
+};
+
+app.get('/', (req, res) => {
+  res.send('Procurement App Backend Running');
+});
+
+app.get('/api/products', async (req, res) => {
+  try {
+    const rows = await all('SELECT * FROM products ORDER BY id');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ingredients', async (req, res) => {
+  try {
+    const rows = await all('SELECT * FROM ingredients ORDER BY id');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/bom', async (req, res) => {
+  try {
+    const rows = await getBomWithNames();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bom/clear', async (req, res) => {
+  const full = req.query.full === 'true';
+  try {
+    await run('DELETE FROM bom');
+    if (full) {
+      await run('DELETE FROM forecast');
+      await run('DELETE FROM products');
+      await run('DELETE FROM ingredients');
+    }
+    res.json({ ok: true, cleared: { bom: true, products: full, ingredients: full, forecast: full } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/forecast', async (req, res) => {
+  try {
+    const rows = await all('SELECT * FROM forecast ORDER BY id');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/forecast', async (req, res) => {
+  const entries = req.body;
+  if (!Array.isArray(entries)) return res.status(400).json({ error: 'Array expected' });
+  try {
+    await run('DELETE FROM forecast');
+    for (const entry of entries) {
+      const quantity = Number(entry.quantity);
+      if (!entry.productId || Number.isNaN(quantity)) continue;
+      await run('INSERT INTO forecast (productId, quantity, month) VALUES (?, ?, ?)', [entry.productId, quantity, entry.month || null]);
+    }
+    const rows = await all('SELECT * FROM forecast ORDER BY id');
+    res.json({ ok: true, forecast: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bom/import', async (req, res) => {
+  const rows = req.body;
+  if (!Array.isArray(rows)) return res.status(400).json({ error: 'Array expected' });
+  try {
+    for (const row of rows) {
+      const productId = Number(row.productId);
+      const ingredientId = Number(row.ingredientId);
+      const quantity = Number(row.quantity);
+      if (!productId || !ingredientId || Number.isNaN(quantity)) continue;
+      await run('INSERT INTO bom (productId, ingredientId, quantity) VALUES (?, ?, ?)', [productId, ingredientId, quantity]);
+    }
+    const bomRows = await getBomWithNames();
+    res.json({ ok: true, bom: bomRows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bom/upload', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file required' });
   try {
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(sheet, { defval: null });
-    const imported = []
-    const skipped = []
+    const imported = [];
+    const skipped = [];
 
-    data.forEach((row, index) => {
-      const productId = Number(getField(row, 'productId', 'product_id', 'ProductId', 'product id', 'Product ID'))
-      const ingredientId = Number(getField(row, 'ingredientId', 'ingredient_id', 'IngredientId', 'ingredient id', 'Ingredient ID'))
-      const productName = normalize(getField(row, 'productName', 'ProductName', 'product', 'Product', 'Product Name', 'product name'))
-      const ingredientName = normalize(getField(row, 'ingredientName', 'IngredientName', 'ingredient', 'Ingredient', 'Ingredient Name', 'ingredient name'))
-      const quantity = Number(getField(row, 'quantity', 'Quantity', 'qty', 'Qty', 'amount', 'Amount'))
-      const unit = normalize(getField(row, 'unit', 'Unit', 'UoM', 'uom', 'UOM'))
-      const extra = getExtraFields(row)
+    for (const [index, row] of data.entries()) {
+      const productId = Number(getField(row, 'productId', 'product_id', 'ProductId', 'product id', 'Product ID'));
+      const ingredientId = Number(getField(row, 'ingredientId', 'ingredient_id', 'IngredientId', 'ingredient id', 'Ingredient ID'));
+      const productName = normalize(getField(row, 'productName', 'ProductName', 'product', 'Product', 'Product Name', 'product name'));
+      const ingredientName = normalize(getField(row, 'ingredientName', 'IngredientName', 'ingredient', 'Ingredient', 'Ingredient Name', 'ingredient name'));
+      const quantity = Number(getField(row, 'quantity', 'Quantity', 'qty', 'Qty', 'amount', 'Amount'));
+      const unit = normalize(getField(row, 'unit', 'Unit', 'UoM', 'uom', 'UOM'));
+      const extra = getExtraFields(row);
 
-      let product = null
-      let ingredient = null
+      let product = null;
+      let ingredient = null;
       if (productId) {
-        product = db.products.find(p => p.id === productId)
+        product = await findProductById(productId);
       }
       if (!product && productName) {
-        product = findOrCreateProduct(productName)
+        product = await findOrCreateProduct(productName);
       }
       if (ingredientId) {
-        ingredient = db.ingredients.find(i => i.id === ingredientId)
+        ingredient = await findIngredientById(ingredientId);
       }
       if (!ingredient && ingredientName) {
-        ingredient = findOrCreateIngredient(ingredientName, unit)
+        ingredient = await findOrCreateIngredient(ingredientName, unit);
       }
 
       if (product && ingredient && !Number.isNaN(quantity)) {
-        const bomRow = {
+        await run('INSERT INTO bom (productId, ingredientId, quantity) VALUES (?, ?, ?)', [product.id, ingredient.id, quantity]);
+        imported.push({
           productId: product.id,
           ingredientId: ingredient.id,
           quantity,
-          ...extra
-        }
-        db.bom.push(bomRow)
-        imported.push({
-          ...bomRow,
           productName: product.name,
           ingredientName: ingredient.name,
-          ingredientUnit: ingredient.unit
-        })
+          ingredientUnit: ingredient.unit,
+          ...extra
+        });
       } else {
-        skipped.push({ row: index + 1, productId, productName, ingredientId, ingredientName, quantity, unit, ...extra })
+        skipped.push({ row: index + 1, productId, productName, ingredientId, ingredientName, quantity, unit, ...extra });
       }
-    });
-    res.json({ ok: true, parsed: data.length, imported, skipped, bom: db.bom });
+    }
+
+    const bomRows = await getBomWithNames();
+    res.json({ ok: true, parsed: data.length, imported, skipped, bom: bomRows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Calculate aggregated ingredient requirements from current forecast + BOM
-app.get('/api/requirements', (req, res) => {
-  // join forecast -> bom -> ingredient
-  const totals = {};
-  db.forecast.forEach(f => {
-    const productBom = db.bom.filter(b => b.productId === f.productId);
-    productBom.forEach(b => {
-      const need = b.quantity * f.quantity;
-      totals[b.ingredientId] = (totals[b.ingredientId] || 0) + need;
-    });
-  });
-  // map to ingredient objects
-  const result = Object.keys(totals).map(id => {
-    const ing = db.ingredients.find(i => i.id === Number(id)) || { id: Number(id), name: 'Unknown', unit: 'unit' };
-    return { ingredientId: Number(id), name: ing.name, unit: ing.unit, quantity: totals[id] };
-  });
-  res.json(result);
+app.get('/api/requirements', async (req, res) => {
+  try {
+    const rows = await all(
+      `SELECT i.id AS ingredientId, i.name AS name, i.unit AS unit, SUM(b.quantity * f.quantity) AS quantity
+       FROM forecast f
+       JOIN bom b ON b.productId = f.productId
+       JOIN ingredients i ON i.id = b.ingredientId
+       GROUP BY i.id, i.name, i.unit`
+    );
+    res.json(rows.map(r => ({ ingredientId: r.ingredientId, name: r.name, unit: r.unit, quantity: r.quantity || 0 })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.listen(3001, () => {
-  console.log('Server running on port 3001');
-});
+initDb()
+  .then(() => {
+    app.listen(3001, () => {
+      console.log('Server running on port 3001');
+    });
+  })
+  .catch((err) => {
+    console.error('Database initialization failed:', err);
+    process.exit(1);
+  });
