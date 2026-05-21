@@ -327,3 +327,30 @@
   color: #334155;
   font-weight: 700;
 }
+
+.requirements-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.requirements-table th:nth-child(1),
+.requirements-table td:nth-child(1) {
+  width: 120px;
+}
+
+.requirements-table th:nth-child(2),
+.requirements-table td:nth-child(2) {
+  width: auto;
+}
+
+.requirements-table th:nth-child(3),
+.requirements-table td:nth-child(3) {
+  width: 140px;
+  text-align: right;
+}
+
+.requirements-table th:nth-child(4),
+.requirements-table td:nth-child(4) {
+  width: 80px;
+  text-align: center;
+}

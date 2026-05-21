@@ -3,14 +3,15 @@
 const products = [
   {
     id: 1,
+    code: "P001",
     name: "Shampoo 250ml",
-    // category removed
-  }
+    }
 ];
 
 const ingredients = [
   {
     id: 1,
+    code: "S001",
     name: "Fragrance Oil",
     unit: "ml"
   }

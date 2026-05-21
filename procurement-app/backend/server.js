@@ -54,7 +54,8 @@ const getExtraFields = (row) => {
     'ingredientName', 'IngredientName', 'ingredient', 'Ingredient', 'Ingredient Name', 'ingredient name',
     'quantity', 'Quantity', 'qty', 'Qty', 'amount', 'Amount',
     'unit', 'Unit', 'UoM', 'uom', 'UOM',
-    'category', 'Category', 'notes', 'Notes'
+    'category', 'Category', 'notes', 'Notes', 'productCode', 'ProductCode', 'product code', 'Product Code',
+'ingredientCode', 'IngredientCode', 'ingredient code', 'Ingredient Code',
   ]);
   return Object.entries(row).reduce((extra, [key, value]) => {
     if (!known.has(key)) {
@@ -69,23 +70,44 @@ const findProductById = async (id) => {
   return await get('SELECT * FROM products WHERE id = ?', [id]);
 };
 
+const findProductByCode = async (code) => {
+  if (code === undefined || code === null || code === '') return null;
+  const normalizedCode = String(code).trim();
+  return await get('SELECT * FROM products WHERE lower(code) = lower(?)', [normalizedCode]);
+};
+
 const findProductByName = async (name) => {
   if (!name) return null;
   return await get('SELECT * FROM products WHERE lower(name) = lower(?)', [name.trim()]);
 };
 
-const createProduct = async (name) => {
-  const result = await run('INSERT INTO products (name) VALUES (?)', [name.trim()]);
-  return { id: result.lastID, name: name.trim() };
+const createProduct = async (name, code) => {
+  const result = await run(
+    'INSERT INTO products (code, name) VALUES (?, ?)',
+    [code || null, name.trim()]
+  );
+  return { id: result.lastID, code: code || null, name: name.trim() };
 };
 
-const findOrCreateProduct = async (name) => {
+const findOrCreateProduct = async (name, code) => {
   const normalized = normalize(name);
+
   if (!normalized) return null;
-  let product = await findProductByName(normalized);
-  if (!product) {
-    product = await createProduct(normalized);
+
+  let product = null;
+
+  if (code) {
+    product = await findProductByCode(code);
   }
+
+  if (!product) {
+    product = await findProductByName(normalized);
+  }
+
+  if (!product) {
+    product = await createProduct(normalized, code);
+  }
+
   return product;
 };
 
@@ -94,50 +116,78 @@ const findIngredientById = async (id) => {
   return await get('SELECT * FROM ingredients WHERE id = ?', [id]);
 };
 
+const findIngredientByCode = async (code) => {
+  if (code === undefined || code === null || code === '') return null;
+  const normalizedCode = String(code).trim();
+  return await get('SELECT * FROM ingredients WHERE lower(code) = lower(?)', [normalizedCode]);
+};
+
 const findIngredientByName = async (name) => {
   if (!name) return null;
   return await get('SELECT * FROM ingredients WHERE lower(name) = lower(?)', [name.trim()]);
 };
 
-const createIngredient = async (name, unit) => {
-  const result = await run('INSERT INTO ingredients (name, unit) VALUES (?, ?)', [name.trim(), unit || 'unit']);
-  return { id: result.lastID, name: name.trim(), unit: unit || 'unit' };
+const createIngredient = async (name, unit, code) => {
+  const result = await run(
+    'INSERT INTO ingredients (code, name, unit) VALUES (?, ?, ?)',
+    [code || null, name.trim(), unit || 'unit']
+  );
+  return { id: result.lastID, code: code || null, name: name.trim(), unit: unit || 'unit' };
 };
 
-const findOrCreateIngredient = async (name, unit) => {
+const findOrCreateIngredient = async (name, unit, code) => {
   const normalized = normalize(name);
+
   if (!normalized) return null;
-  let ingredient = await findIngredientByName(normalized);
+
+  let ingredient = null;
+
+  if (code) {
+    ingredient = await findIngredientByCode(code);
+  }
+
   if (!ingredient) {
-    ingredient = await createIngredient(normalized, unit);
+    ingredient = await findIngredientByName(normalized);
+  }
+
+  if (!ingredient) {
+    ingredient = await createIngredient(normalized, unit, code);
   } else if (!ingredient.unit && unit) {
-    await run('UPDATE ingredients SET unit = ? WHERE id = ?', [unit, ingredient.id]);
+    await run(
+      'UPDATE ingredients SET unit = ? WHERE id = ?',
+      [unit, ingredient.id]
+    );
+
     ingredient.unit = unit;
   }
+
   return ingredient;
 };
 
 const getBomWithNames = async () => {
   return await all(
-    `SELECT bom.productId, bom.ingredientId, bom.quantity, p.name AS productName, i.name AS ingredientName, i.unit AS ingredientUnit
-     FROM bom
-     JOIN products p ON p.id = bom.productId
-     JOIN ingredients i ON i.id = bom.ingredientId
-     ORDER BY bom.id`
+    `SELECT bom.productId,p.code AS productCode,bom.ingredientId,i.code AS ingredientCode,bom.quantity,
+    p.name AS productName,i.name AS ingredientName,i.unit AS ingredientUnit
+    FROM bom
+    JOIN products p ON p.id = bom.productId
+    JOIN ingredients i ON i.id = bom.ingredientId
+    ORDER BY bom.id`
   );
 };
 
 const initDb = async () => {
-  await run(`CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE
-  )`);
+await run(`CREATE TABLE IF NOT EXISTS products (
+  id INTEGER PRIMARY KEY,
+  code TEXT,
+  name TEXT NOT NULL UNIQUE
+)`);
 
-  await run(`CREATE TABLE IF NOT EXISTS ingredients (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    unit TEXT NOT NULL DEFAULT 'unit'
-  )`);
+await run(`CREATE TABLE IF NOT EXISTS ingredients (
+  id INTEGER PRIMARY KEY,
+  code TEXT,
+  name TEXT NOT NULL UNIQUE,
+  unit TEXT NOT NULL DEFAULT 'unit'
+)`);
 
   await run(`CREATE TABLE IF NOT EXISTS bom (
     id INTEGER PRIMARY KEY,
@@ -158,10 +208,16 @@ const initDb = async () => {
   const row = await get('SELECT COUNT(*) AS count FROM products');
   if (row?.count === 0 && initialData.products.length) {
     for (const product of initialData.products) {
-      await run('INSERT INTO products (id, name) VALUES (?, ?)', [product.id, product.name]);
+      await run(
+  'INSERT INTO products (id, code, name) VALUES (?, ?, ?)',
+  [product.id, product.code, product.name]
+);
     }
     for (const ingredient of initialData.ingredients) {
-      await run('INSERT INTO ingredients (id, name, unit) VALUES (?, ?, ?)', [ingredient.id, ingredient.name, ingredient.unit]);
+      await run(
+  'INSERT INTO ingredients (id, code, name, unit) VALUES (?, ?, ?, ?)',
+  [ingredient.id, ingredient.code, ingredient.name, ingredient.unit]
+);
     }
     for (const bomRow of initialData.bom) {
       await run('INSERT INTO bom (productId, ingredientId, quantity) VALUES (?, ?, ?)', [bomRow.productId, bomRow.ingredientId, bomRow.quantity]);
@@ -275,6 +331,8 @@ app.post('/api/bom/upload', upload.single('file'), async (req, res) => {
     for (const [index, row] of data.entries()) {
       const productId = Number(getField(row, 'productId', 'product_id', 'ProductId', 'product id', 'Product ID'));
       const ingredientId = Number(getField(row, 'ingredientId', 'ingredient_id', 'IngredientId', 'ingredient id', 'Ingredient ID'));
+      const productCode = normalize(getField(row, 'productCode', 'ProductCode', 'product code', 'Product Code', 'product_code', 'Product_Code'));
+      const ingredientCode = normalize(getField(row, 'ingredientCode', 'IngredientCode', 'ingredient code', 'Ingredient Code', 'ingredient_code', 'Ingredient_Code'));
       const productName = normalize(getField(row, 'productName', 'ProductName', 'product', 'Product', 'Product Name', 'product name'));
       const ingredientName = normalize(getField(row, 'ingredientName', 'IngredientName', 'ingredient', 'Ingredient', 'Ingredient Name', 'ingredient name'));
       const quantity = Number(getField(row, 'quantity', 'Quantity', 'qty', 'Qty', 'amount', 'Amount'));
@@ -283,18 +341,29 @@ app.post('/api/bom/upload', upload.single('file'), async (req, res) => {
 
       let product = null;
       let ingredient = null;
-      if (productId) {
-        product = await findProductById(productId);
-      }
-      if (!product && productName) {
-        product = await findOrCreateProduct(productName);
-      }
-      if (ingredientId) {
-        ingredient = await findIngredientById(ingredientId);
-      }
-      if (!ingredient && ingredientName) {
-        ingredient = await findOrCreateIngredient(ingredientName, unit);
-      }
+if (productCode) {
+  product = await findProductByCode(productCode);
+}
+if (!product && productId) {
+  product = await findProductById(productId);
+}
+if (!product && productName) {
+  product = await findOrCreateProduct(productName, productCode);
+}
+
+if (ingredientCode) {
+  ingredient = await findIngredientByCode(ingredientCode);
+}
+if (!ingredient && ingredientId) {
+  ingredient = await findIngredientById(ingredientId);
+}
+if (!ingredient && ingredientName) {
+  ingredient = await findOrCreateIngredient(
+  ingredientName,
+  unit,
+  ingredientCode
+);
+}
 
       if (product && ingredient && !Number.isNaN(quantity)) {
         await run('INSERT INTO bom (productId, ingredientId, quantity) VALUES (?, ?, ?)', [product.id, ingredient.id, quantity]);
@@ -302,6 +371,8 @@ app.post('/api/bom/upload', upload.single('file'), async (req, res) => {
           productId: product.id,
           ingredientId: ingredient.id,
           quantity,
+          productCode: product.code,
+          ingredientCode: ingredient.code,
           productName: product.name,
           ingredientName: ingredient.name,
           ingredientUnit: ingredient.unit,
@@ -322,13 +393,23 @@ app.post('/api/bom/upload', upload.single('file'), async (req, res) => {
 app.get('/api/requirements', async (req, res) => {
   try {
     const rows = await all(
-      `SELECT i.id AS ingredientId, i.name AS name, i.unit AS unit, SUM(b.quantity * f.quantity) AS quantity
+      `SELECT
+  i.id AS ingredientId,
+  i.code AS ingredientCode,
+  i.name AS name,
+  i.unit AS unit, SUM(b.quantity * f.quantity) AS quantity
        FROM forecast f
        JOIN bom b ON b.productId = f.productId
        JOIN ingredients i ON i.id = b.ingredientId
        GROUP BY i.id, i.name, i.unit`
     );
-    res.json(rows.map(r => ({ ingredientId: r.ingredientId, name: r.name, unit: r.unit, quantity: r.quantity || 0 })));
+    res.json(rows.map(r => ({
+  ingredientId: r.ingredientId,
+  ingredientCode: r.ingredientCode,
+  name: r.name,
+  unit: r.unit,
+  quantity: r.quantity || 0
+})));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
