@@ -185,20 +185,50 @@
   object-fit: contain;
 }
 
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  background: linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0.5)), url('/background.jpg') no-repeat center/cover;
+}
+
 .app-header {
+  width: 260px;
+  min-height: 100vh;
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+}
+
+.brand {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 20px 28px;
-  flex-wrap: wrap;
+  gap: 14px;
 }
 
 .nav-buttons {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
+  flex-direction: column;
+  gap: 12px;
   width: 100%;
+}
+
+.nav-buttons button {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.nav-buttons button:last-child {
+  margin-left: 0;
+}
+
+.app-main {
+  flex: 1;
+  padding: 32px;
 }
 
 .nav-buttons button:last-child {
