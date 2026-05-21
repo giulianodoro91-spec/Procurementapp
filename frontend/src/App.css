@@ -179,7 +179,7 @@
 }
 
 .brand-logo {
-  width: 96px;
+  width: 256px;
   height: auto;
   border-radius: 12px;
   object-fit: contain;
@@ -188,7 +188,7 @@
 .app-root {
   min-height: 100vh;
   display: flex;
-  background: linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0.5)), url('/background.jpg') no-repeat center/cover;
+  background: #ffffff;
 }
 
 .app-header {
@@ -199,8 +199,14 @@
   flex-direction: column;
   align-items: stretch;
   gap: 24px;
-  background: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(rgba(255,255,255,0.65), rgba(255,255,255,0.65)), url('/background.jpg') no-repeat center/cover;
   box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+}
+
+.app-main {
+  flex: 1;
+  padding: 32px;
+  background: #ffffff;
 }
 
 .brand {
@@ -235,10 +241,6 @@
   margin-left: auto;
 }
 
-.app-root {
-  min-height: 100vh;
-  background: linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0.5)), url('/background.jpg') no-repeat center/cover;
-}
 
 .app-main,
 .page-card {
@@ -292,4 +294,36 @@
     right: 0;
     border-right-color: var(--border);
   }
+}
+
+.main-title {
+  background:
+    linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.72)),
+    url('/background.jpg') no-repeat center/cover;
+
+  padding: 34px 40px;
+  margin:
+    -32px
+    -32px
+    42px
+    -32px;
+
+  text-align: center;
+
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.main-title h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -1px;
+}
+
+.main-title p {
+  margin-top: 12px;
+  font-size: 16px;
+  color: #334155;
+  font-weight: 700;
 }

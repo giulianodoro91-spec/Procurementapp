@@ -260,12 +260,8 @@ function App() {
     <div className="app-root">
       <header className="app-header">
         <div className="brand">
-          <img className="brand-logo" src="/VZK_logo.jpg" alt="VZK logo" />
-          <div>
-            <div className="brand-name">VZK Procurement</div>
-            <div className="brand-tagline">BOM import, forecast planning, requirements in one place</div>
-          </div>
-        </div>
+  <img className="brand-logo" src="/VZK_logo.jpg" alt="VZK logo" />
+</div>
         <nav className="nav-buttons">
           <button className={page==='import' ? 'active' : ''} onClick={()=>setPage('import')}>Import BOM</button>
           <button className={page==='forecast' ? 'active' : ''} onClick={()=>setPage('forecast')}>Forecast</button>
@@ -274,6 +270,10 @@ function App() {
         </nav>
       </header>
       <main className="app-main">
+        <div className="main-title">
+  <h1>Procurement & Forecast App</h1>
+  <p>Planning and requirements in one place</p>
+</div>
         {page==='import' && <ImportPage />}
         {page==='forecast' && <ForecastPage rows={forecastRows} setRows={setForecastRows} />}
         {page==='bom' && <BOMPage />}
