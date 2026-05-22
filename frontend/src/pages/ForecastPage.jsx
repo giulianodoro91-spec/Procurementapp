@@ -191,9 +191,9 @@ function ForecastPage({ rows, setRows }) {
         </table>
 
         <div className="page-actions">
-          <button onClick={addRow}>Add row</button>
-          <button onClick={save}>Save forecast</button>
-          <button className="secondary" onClick={clearForecast}>
+          <button className="button-secondary" onClick={addRow}>Add row</button>
+          <button className="button-primary" onClick={save}>Save forecast</button>
+          <button className="button-danger" onClick={clearForecast}>
             Clear forecast
           </button>
         </div>

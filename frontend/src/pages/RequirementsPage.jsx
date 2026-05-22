@@ -78,8 +78,8 @@ function RequirementsPage() {
         </div>
 
         <div className="page-actions">
-          <button onClick={copyToClipboard}>Copy to Clipboard</button>
-          <button onClick={exportToExcel}>Export to Excel</button>
+          <button className="button-secondary" onClick={copyToClipboard}>Copy to Clipboard</button>
+          <button className="button-primary" onClick={exportToExcel}>Export to Excel</button>
         </div>
       </div>
 

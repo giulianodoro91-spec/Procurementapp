@@ -1,3 +1,5 @@
+import SuppliersPage from "./pages/SuppliersPage";
+import PurchasingDashboard from "./pages/PurchasingDashboard";
 import HomePage from "./pages/HomePage";
 import PlanningModulePage from "./pages/PlanningModulePage";
 import ForecastPage from "./pages/ForecastPage";
@@ -34,20 +36,12 @@ function App() {
         
 {page==='home' && <HomePage setPage={setPage} />}
 {page==='planning' && <PlanningModulePage setPage={setPage} />}
-
-{page==='purchasing' && (
-  <section className="page-card">
-    <h2>Purchasing</h2>
-    <p className="page-description">
-      This module will include suppliers, purchase orders and order tracking.
-    </p>
-  </section>
-)}
-
+{page==='purchasing' && <PurchasingDashboard setPage={setPage} />}
 {page==='import' && <ImportPage />}
 {page==='forecast' && <ForecastPage rows={forecastRows} setRows={setForecastRows} />}
 {page==='bom' && <BOMPage />}
 {page==='requirements' && <RequirementsPage />}
+{page==='suppliers' && <SuppliersPage />}
       </main>
     </div>
   )

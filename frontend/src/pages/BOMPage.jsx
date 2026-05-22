@@ -36,10 +36,10 @@ function BOMPage() {
       </div>
 
       <div className="page-actions">
-        <button onClick={fetchBom}>Refresh</button>
+        <button className="button-secondary" onClick={fetchBom}>Refresh</button>
 
         <button
-          className="secondary"
+          className="button-danger"
           onClick={async () => {
             if (!window.confirm("Clear BOM rows? This cannot be undone.")) return;
 
@@ -56,7 +56,7 @@ function BOMPage() {
         </button>
 
         <button
-          className="danger"
+          className="button-danger"
           onClick={async () => {
             if (
               !window.confirm(

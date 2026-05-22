@@ -205,6 +205,20 @@ await run(`CREATE TABLE IF NOT EXISTS ingredients (
     month TEXT
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS suppliers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplierCode TEXT UNIQUE,
+  supplierName TEXT NOT NULL,
+  contactPerson TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  city TEXT,
+  country TEXT,
+  notes TEXT,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
   const row = await get('SELECT COUNT(*) AS count FROM products');
   if (row?.count === 0 && initialData.products.length) {
     for (const product of initialData.products) {
@@ -425,3 +439,135 @@ initDb()
     console.error('Database initialization failed:', err);
     process.exit(1);
   });
+
+  app.get('/api/suppliers', (req, res) => {
+  db.all(
+    `SELECT * FROM suppliers ORDER BY supplierName`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message })
+      }
+
+      res.json(rows)
+    }
+  )
+})
+
+app.post('/api/suppliers', (req, res) => {
+  const {
+    supplierCode,
+    supplierName,
+    contactPerson,
+    email,
+    phone,
+    address,
+    city,
+    country,
+    notes
+  } = req.body
+
+  db.run(
+    `
+    INSERT INTO suppliers (
+      supplierCode,
+      supplierName,
+      contactPerson,
+      email,
+      phone,
+      address,
+      city,
+      country,
+      notes
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      supplierCode,
+      supplierName,
+      contactPerson,
+      email,
+      phone,
+      address,
+      city,
+      country,
+      notes
+    ],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message })
+      }
+
+      res.json({
+        success: true,
+        id: this.lastID
+      })
+    }
+  )
+})
+
+app.put('/api/suppliers/:id', async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    supplierCode,
+    supplierName,
+    contactPerson,
+    email,
+    phone,
+    address,
+    city,
+    country,
+    notes
+  } = req.body;
+
+  if (!supplierName?.trim()) {
+    return res.status(400).json({ error: 'Supplier name is required' });
+  }
+
+  try {
+    await run(
+      `
+      UPDATE suppliers
+      SET
+        supplierCode = ?,
+        supplierName = ?,
+        contactPerson = ?,
+        email = ?,
+        phone = ?,
+        address = ?,
+        city = ?,
+        country = ?,
+        notes = ?
+      WHERE id = ?
+      `,
+      [
+        supplierCode || null,
+        supplierName,
+        contactPerson || null,
+        email || null,
+        phone || null,
+        address || null,
+        city || null,
+        country || null,
+        notes || null,
+        id
+      ]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/suppliers/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await run('DELETE FROM suppliers WHERE id = ?', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

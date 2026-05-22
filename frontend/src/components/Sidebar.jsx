@@ -59,6 +59,15 @@ function Sidebar({ setPage }) {
             <button className="sidebar-link" onClick={() => setPage("purchasing")}>
               Dashboard
             </button>
+            <button className="sidebar-link" onClick={() => setPage("suppliers")}>
+              Suppliers
+            </button>
+            <button className="sidebar-link" onClick={() => setPage("purchase-orders")}>
+              Purchase Orders
+            </button>
+            <button className="sidebar-link" onClick={() => setPage("receipts")}>
+              Receipts
+            </button>
           </div>
         )}
       </div>
