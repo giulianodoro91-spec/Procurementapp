@@ -15,7 +15,7 @@ function SuppliersPage() {
     country: "",
     notes: "",
   });
-
+  
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -35,6 +35,20 @@ function SuppliersPage() {
       [key]: value,
     }));
   };
+
+  const resetForm = () => {
+  setForm({
+    supplierCode: "",
+    supplierName: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    country: "",
+    notes: "",
+  });
+};
 
 const saveSupplier = async () => {
   if (!form.supplierName.trim()) {
@@ -62,18 +76,7 @@ const saveSupplier = async () => {
     return;
   }
 
-  setForm({
-    supplierCode: "",
-    supplierName: "",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    country: "",
-    notes: "",
-  });
-
+resetForm();
 setEditingId(null);
 setShowForm(false);
 await loadSuppliers();
@@ -131,14 +134,27 @@ const deleteSupplier = async (supplier) => {
 
   return (
     <section className="page-card">
-      <div className="page-header">
-        <div>
-          <h2>Suppliers</h2>
-          <p className="page-description">
-            Manage supplier master data for the purchasing module.
-          </p>
-        </div>
-      </div>
+<div className="page-header">
+  <div>
+    <h2>Suppliers</h2>
+    <p className="page-description">
+      Manage supplier master data for the purchasing module.
+    </p>
+  </div>
+</div>
+
+<div className="section-toolbar">
+  <button
+    className="button-primary"
+    onClick={() => {
+      resetForm();
+      setEditingId(null);
+      setShowForm(true);
+    }}
+  >
+    New Supplier
+  </button>
+</div>
 {showForm && (
   <>
 <h3 className="section-title">
@@ -205,41 +221,14 @@ const deleteSupplier = async (supplier) => {
   {editingId ? "Update Supplier" : "Save Supplier"}
 </button>
 
-{editingId && (
-  <button className="secondary" onClick={cancelEdit}>
-    Cancel Edit
-  </button>
-)}
+<button className="button-secondary" onClick={cancelEdit}>
+  Cancel
+</button>
       </div>
   </>
 )}
-<div className="section-toolbar">
 
-  <button
-    className="button-primary"
-    onClick={() => {
-      setEditingId(null);
-
-      setShowForm(true);
-
-      setForm({
-        supplierCode: "",
-        supplierName: "",
-        contactPerson: "",
-        email: "",
-        phone: "",
-        address: "",
-        city: "",
-        country: "",
-        notes: "",
-      });
-    }}
-  >
-  New Supplier
-  </button>
-
-</div>
-      <h3>Supplier List</h3>
+      <h3 className="section-title">Supplier List</h3>
 
       <div className="table-wrap">
         <table className="data-table">

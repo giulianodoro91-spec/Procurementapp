@@ -479,22 +479,34 @@ app.get('/api/requirements', async (req, res) => {
   try {
     const rows = await all(
       `SELECT
-  i.id AS ingredientId,
-  i.code AS ingredientCode,
-  i.name AS name,
-  i.unit AS unit, SUM(b.quantity * f.quantity) AS quantity
+        i.id AS ingredientId,
+        i.code AS ingredientCode,
+        i.name AS name,
+        i.unit AS baseUnit,
+        i.purchaseUnit AS purchaseUnit,
+        i.conversionFactor AS conversionFactor,
+        SUM(b.quantity * f.quantity) AS quantity
        FROM forecast f
        JOIN bom b ON b.productId = f.productId
        JOIN ingredients i ON i.id = b.ingredientId
-       GROUP BY i.id, i.name, i.unit`
+       GROUP BY
+        i.id,
+        i.code,
+        i.name,
+        i.unit,
+        i.purchaseUnit,
+        i.conversionFactor`
     );
+
     res.json(rows.map(r => ({
-  ingredientId: r.ingredientId,
-  ingredientCode: r.ingredientCode,
-  name: r.name,
-  unit: r.unit,
-  quantity: r.quantity || 0
-})));
+      ingredientId: r.ingredientId,
+      ingredientCode: r.ingredientCode,
+      name: r.name,
+      baseUnit: r.baseUnit,
+      purchaseUnit: r.purchaseUnit,
+      conversionFactor: r.conversionFactor || 1,
+      quantity: r.quantity || 0
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -641,7 +653,7 @@ app.post('/api/purchase-orders/:id/lines', async (req, res) => {
         ingredient.code,
         ingredient.name,
         qty,
-        ingredient.unit,
+        ingredient.purchaseUnit || ingredient.unit,
         price,
         lineTotal
       ]

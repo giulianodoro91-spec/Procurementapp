@@ -4,6 +4,8 @@ const API = "/api";
 
 function PurchaseOrdersPage() {
   const [ingredients, setIngredients] = useState([]);
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [activeIngredientSuggestion, setActiveIngredientSuggestion] = useState(-1);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -111,6 +113,9 @@ const resetLineForm = () => {
     quantity: "",
     unitPrice: "",
   });
+
+  setIngredientSearch("");
+  setActiveIngredientSuggestion(-1);
 };
 
 const addLine = async () => {
@@ -160,6 +165,60 @@ const deleteLine = async (line) => {
 
   await loadPoLines(selectedPo);
   await loadPurchaseOrders();
+};
+
+const visibleIngredients = () => {
+  if (!ingredientSearch.trim()) return [];
+
+  const term = ingredientSearch.trim().toLowerCase();
+
+  return ingredients
+    .filter((ingredient) => {
+      const code = String(ingredient.code ?? "").toLowerCase();
+      const name = String(ingredient.name ?? "").toLowerCase();
+
+      return code.includes(term) || name.includes(term);
+    })
+    .slice(0, 8);
+};
+
+const chooseIngredient = (ingredient) => {
+  updateLineForm("ingredientId", String(ingredient.id));
+
+  setIngredientSearch(
+    `${ingredient.code} - ${ingredient.name} (${ingredient.purchaseUnit ?? ingredient.baseUnit ?? ingredient.unit})`
+  );
+
+  setActiveIngredientSuggestion(-1);
+};
+
+const handleIngredientKeyDown = (event, suggestions) => {
+  if (!suggestions.length) return;
+
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    setActiveIngredientSuggestion((current) =>
+      Math.min(current + 1, suggestions.length - 1)
+    );
+  }
+
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    setActiveIngredientSuggestion((current) =>
+      Math.max(current - 1, 0)
+    );
+  }
+
+  if (event.key === "Enter") {
+    if (activeIngredientSuggestion >= 0) {
+      event.preventDefault();
+      chooseIngredient(suggestions[activeIngredientSuggestion]);
+    }
+  }
+
+  if (event.key === "Escape") {
+    setActiveIngredientSuggestion(-1);
+  }
 };
 
   return (
@@ -282,18 +341,38 @@ const deleteLine = async (line) => {
     <h3 className="section-title">Add Line</h3>
 
     <div className="form-grid">
-<select
-  value={lineForm.ingredientId}
-  onChange={(e) => updateLineForm("ingredientId", e.target.value)}
->
-  <option value="">Select ingredient</option>
+<div className="product-search">
+  <input
+    value={ingredientSearch}
+    onChange={(e) => {
+      setIngredientSearch(e.target.value);
+      updateLineForm("ingredientId", "");
+      setActiveIngredientSuggestion(0);
+    }}
+    onKeyDown={(e) => handleIngredientKeyDown(e, visibleIngredients())}
+    placeholder="Type ingredient code or name"
+    autoComplete="off"
+  />
 
-  {ingredients.map((ingredient) => (
-    <option key={ingredient.id} value={ingredient.id}>
-      {ingredient.code} - {ingredient.name} ({ingredient.unit})
-    </option>
-  ))}
-</select>
+  {visibleIngredients().length > 0 &&
+    ingredientSearch &&
+    !lineForm.ingredientId && (
+      <ul className="suggestions">
+        {visibleIngredients().map((ingredient, index) => (
+          <li
+            key={ingredient.id}
+            onClick={() => chooseIngredient(ingredient)}
+            className={
+              activeIngredientSuggestion === index ? "active" : ""
+            }
+          >
+            {ingredient.code} - {ingredient.name} (
+            {ingredient.purchaseUnit ?? ingredient.baseUnit ?? ingredient.unit})
+          </li>
+        ))}
+      </ul>
+    )}
+</div>
 
 <input
   type="number"

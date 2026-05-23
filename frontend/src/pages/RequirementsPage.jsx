@@ -88,48 +88,78 @@ function RequirementsPage() {
 
         <table className="data-table requirements-table">
           <thead>
-            <tr>
-              <th>Code</th>
-              <th>Ingredient</th>
-              <th>Quantity</th>
-              <th>Unit</th>
-            </tr>
-          </thead>
+  <tr>
+    <th>Code</th>
+    <th>Ingredient</th>
+    <th>Required Qty</th>
+    <th>Base Unit</th>
+    <th>Purchase Qty</th>
+    <th>Purchase Unit</th>
+  </tr>
+</thead>
 
-          <tbody>
-            {rawMaterials.map((r) => (
-              <tr key={r.ingredientId}>
-                <td>{r.ingredientCode}</td>
-                <td>{r.name}</td>
-                <td>{r.quantity}</td>
-                <td>{r.unit}</td>
-              </tr>
-            ))}
-          </tbody>
+<tbody>
+  {rawMaterials.map((r) => {
+    const purchaseQty =
+      r.conversionFactor && r.conversionFactor !== 0
+        ? r.quantity / r.conversionFactor
+        : r.quantity;
+
+    return (
+      <tr key={r.ingredientId}>
+        <td>{r.ingredientCode}</td>
+        <td>{r.name}</td>
+
+        <td>{Number(r.quantity).toFixed(1)}</td>
+
+        <td>{r.baseUnit ?? r.unit}</td>
+
+        <td>{Number(purchaseQty).toFixed(1)}</td>
+
+        <td>{r.purchaseUnit}</td>
+      </tr>
+    );
+  })}
+</tbody>
         </table>
 
         <h3>Packaging</h3>
 
         <table className="data-table requirements-table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Item</th>
-              <th>Quantity</th>
-              <th>Unit</th>
-            </tr>
-          </thead>
+<thead>
+  <tr>
+    <th>Code</th>
+    <th>Ingredient</th>
+    <th>Required Qty</th>
+    <th>Base Unit</th>
+    <th>Purchase Qty</th>
+    <th>Purchase Unit</th>
+  </tr>
+</thead>
 
-          <tbody>
-            {packagingItems.map((r) => (
-              <tr key={r.ingredientId}>
-                <td>{r.ingredientCode}</td>
-                <td>{r.name}</td>
-                <td>{r.quantity}</td>
-                <td>{r.unit}</td>
-              </tr>
-            ))}
-          </tbody>
+<tbody>
+  {packagingItems.map((r) => {
+    const purchaseQty =
+      r.conversionFactor && r.conversionFactor !== 0
+        ? r.quantity / r.conversionFactor
+        : r.quantity;
+
+    return (
+      <tr key={r.ingredientId}>
+        <td>{r.ingredientCode}</td>
+        <td>{r.name}</td>
+
+        <td>{Number(r.quantity).toFixed(1)}</td>
+
+        <td>{r.baseUnit ?? r.unit}</td>
+
+        <td>{Number(purchaseQty).toFixed(1)}</td>
+
+        <td>{r.purchaseUnit}</td>
+      </tr>
+    );
+  })}
+</tbody>
         </table>
       </div>
     </section>

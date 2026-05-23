@@ -127,7 +127,7 @@ function ForecastPage({ rows, setRows }) {
         </div>
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap forecast-table-wrap">
         <table className="data-table">
           <thead>
             <tr>
