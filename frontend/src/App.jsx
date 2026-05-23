@@ -1,3 +1,4 @@
+import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import PurchasingDashboard from "./pages/PurchasingDashboard";
 import HomePage from "./pages/HomePage";
@@ -42,6 +43,7 @@ function App() {
 {page==='bom' && <BOMPage />}
 {page==='requirements' && <RequirementsPage />}
 {page==='suppliers' && <SuppliersPage />}
+{page === "purchase-orders" && <PurchaseOrdersPage />}
       </main>
     </div>
   )

@@ -219,6 +219,29 @@ await run(`CREATE TABLE IF NOT EXISTS ingredients (
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
 )`);
 
+await run(`CREATE TABLE IF NOT EXISTS purchase_orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  poNumber TEXT UNIQUE,
+  supplierId INTEGER NOT NULL,
+  orderDate TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Draft',
+  notes TEXT,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(supplierId) REFERENCES suppliers(id)
+)`);
+
+await run(`CREATE TABLE IF NOT EXISTS purchase_order_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  purchaseOrderId INTEGER NOT NULL,
+  itemCode TEXT,
+  itemName TEXT NOT NULL,
+  quantity REAL NOT NULL,
+  unit TEXT,
+  unitPrice REAL DEFAULT 0,
+  lineTotal REAL DEFAULT 0,
+  FOREIGN KEY(purchaseOrderId) REFERENCES purchase_orders(id)
+)`);
+
   const row = await get('SELECT COUNT(*) AS count FROM products');
   if (row?.count === 0 && initialData.products.length) {
     for (const product of initialData.products) {
@@ -424,6 +447,173 @@ app.get('/api/requirements', async (req, res) => {
   unit: r.unit,
   quantity: r.quantity || 0
 })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/purchase-orders', async (req, res) => {
+  try {
+    const rows = await all(`
+      SELECT
+        po.id,
+        po.poNumber,
+        po.orderDate,
+        po.status,
+        po.notes,
+        s.supplierName,
+        COALESCE(SUM(pol.lineTotal), 0) AS total
+      FROM purchase_orders po
+      JOIN suppliers s ON s.id = po.supplierId
+      LEFT JOIN purchase_order_lines pol ON pol.purchaseOrderId = po.id
+      GROUP BY po.id
+      ORDER BY po.id DESC
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-orders', async (req, res) => {
+  const {
+    supplierId,
+    orderDate,
+    notes
+  } = req.body;
+
+  if (!supplierId) {
+    return res.status(400).json({ error: 'Supplier is required' });
+  }
+
+  if (!orderDate) {
+    return res.status(400).json({ error: 'Order date is required' });
+  }
+
+  try {
+    const result = await run(
+      `
+      INSERT INTO purchase_orders (
+        supplierId,
+        orderDate,
+        status,
+        notes
+      )
+      VALUES (?, ?, 'Draft', ?)
+      `,
+      [
+        supplierId,
+        orderDate,
+        notes || null
+      ]
+    );
+
+    const poNumber = `PO-${String(result.lastID).padStart(5, '0')}`;
+
+    await run(
+      `UPDATE purchase_orders SET poNumber = ? WHERE id = ?`,
+      [poNumber, result.lastID]
+    );
+
+    res.json({
+      ok: true,
+      id: result.lastID,
+      poNumber
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/purchase-orders/:id/lines', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const rows = await all(
+      `
+      SELECT *
+      FROM purchase_order_lines
+      WHERE purchaseOrderId = ?
+      ORDER BY id
+      `,
+      [id]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-orders/:id/lines', async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    itemCode,
+    itemName,
+    quantity,
+    unit,
+    unitPrice
+  } = req.body;
+
+  if (!itemName?.trim()) {
+    return res.status(400).json({ error: 'Item name is required' });
+  }
+
+  const qty = Number(quantity);
+  const price = Number(unitPrice || 0);
+
+  if (Number.isNaN(qty) || qty <= 0) {
+    return res.status(400).json({ error: 'Quantity must be greater than zero' });
+  }
+
+  const lineTotal = qty * price;
+
+  try {
+    const result = await run(
+      `
+      INSERT INTO purchase_order_lines (
+        purchaseOrderId,
+        itemCode,
+        itemName,
+        quantity,
+        unit,
+        unitPrice,
+        lineTotal
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        id,
+        itemCode || null,
+        itemName,
+        qty,
+        unit || null,
+        price,
+        lineTotal
+      ]
+    );
+
+    res.json({
+      ok: true,
+      id: result.lastID
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/purchase-order-lines/:lineId', async (req, res) => {
+  const { lineId } = req.params;
+
+  try {
+    await run(
+      `DELETE FROM purchase_order_lines WHERE id = ?`,
+      [lineId]
+    );
+
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

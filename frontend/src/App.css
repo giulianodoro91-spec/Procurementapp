@@ -337,8 +337,49 @@
 
 .file-input {
   display: inline-flex;
+
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+
+  padding: 10px 16px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #1e9af9;
+
+  color: white;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+
+  box-shadow:
+    0 0 4px rgba(37, 99, 235, 0.45),
+    0 0 4px rgba(37, 99, 235, 0.25);
+
+  position: relative;
+
+  overflow: hidden;
+}
+
+.file-input:hover {
+  transform: translateY(-1px);
+}
+
+.file-input input[type="file"] {
+  position: absolute;
+
+  inset: 0;
+
+  opacity: 0;
+
   cursor: pointer;
 }
 
