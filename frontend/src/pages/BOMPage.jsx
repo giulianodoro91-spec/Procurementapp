@@ -95,7 +95,9 @@ function BOMPage() {
                 <th>ingredientCode</th>
                 <th>ingredientName</th>
                 <th>quantity</th>
-                <th>unit</th>
+                <th>Base Unit</th>
+              <th>Purchase Unit</th>
+            <th>Conversion Factor</th>
               </tr>
             </thead>
 
@@ -107,7 +109,9 @@ function BOMPage() {
                   <td>{row.ingredientCode}</td>
                   <td>{row.ingredientName}</td>
                   <td>{row.quantity}</td>
-                  <td>{row.ingredientUnit ?? row.unit ?? ""}</td>
+                  <td>{row.baseUnit ?? ""}</td>
+<td>{row.purchaseUnit ?? ""}</td>
+<td>{row.conversionFactor ?? 1}</td>
                 </tr>
               ))}
             </tbody>

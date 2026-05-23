@@ -167,7 +167,7 @@ const findOrCreateIngredient = async (name, unit, code) => {
 const getBomWithNames = async () => {
   return await all(
     `SELECT bom.productId,p.code AS productCode,bom.ingredientId,i.code AS ingredientCode,bom.quantity,
-    p.name AS productName,i.name AS ingredientName,i.unit AS ingredientUnit
+    p.name AS productName,i.name AS ingredientName,i.unit AS baseUnit,i.purchaseUnit AS purchaseUnit,i.conversionFactor AS conversionFactor
     FROM bom
     JOIN products p ON p.id = bom.productId
     JOIN ingredients i ON i.id = bom.ingredientId
@@ -186,8 +186,42 @@ await run(`CREATE TABLE IF NOT EXISTS ingredients (
   id INTEGER PRIMARY KEY,
   code TEXT,
   name TEXT NOT NULL UNIQUE,
-  unit TEXT NOT NULL DEFAULT 'unit'
+  baseUnit TEXT,
+  purchaseUnit TEXT,
+  conversionFactor REAL DEFAULT 1
 )`);
+
+try {
+  await run(`ALTER TABLE ingredients ADD COLUMN purchaseUnit TEXT`);
+} catch (err) {
+  if (!err.message.includes("duplicate column name")) {
+    throw err;
+  }
+}
+
+try {
+  await run(`ALTER TABLE ingredients ADD COLUMN conversionFactor REAL DEFAULT 1`);
+} catch (err) {
+  if (!err.message.includes("duplicate column name")) {
+    throw err;
+  }
+}
+
+await run(`
+  UPDATE ingredients
+  SET purchaseUnit = 'kg',
+      conversionFactor = 1000
+  WHERE lower(unit) IN ('g', 'gram', 'grams')
+    AND (purchaseUnit IS NULL OR purchaseUnit = '')
+`);
+
+await run(`
+  UPDATE ingredients
+  SET purchaseUnit = 'pcs',
+      conversionFactor = 1
+  WHERE lower(unit) IN ('pcs', 'pc', 'piece', 'pieces', 'unit', 'units')
+    AND (purchaseUnit IS NULL OR purchaseUnit = '')
+`);
 
   await run(`CREATE TABLE IF NOT EXISTS bom (
     id INTEGER PRIMARY KEY,
@@ -242,6 +276,14 @@ await run(`CREATE TABLE IF NOT EXISTS purchase_order_lines (
   FOREIGN KEY(purchaseOrderId) REFERENCES purchase_orders(id)
 )`);
 
+try {
+  await run(`ALTER TABLE purchase_order_lines ADD COLUMN ingredientId INTEGER`);
+} catch (err) {
+  if (!err.message.includes("duplicate column name")) {
+    throw err;
+  }
+}
+
   const row = await get('SELECT COUNT(*) AS count FROM products');
   if (row?.count === 0 && initialData.products.length) {
     for (const product of initialData.products) {
@@ -281,7 +323,13 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/ingredients', async (req, res) => {
   try {
     const rows = await all('SELECT * FROM ingredients ORDER BY id');
-    res.json(rows);
+    res.json(
+  rows.map((ingredient) => ({
+    ...ingredient,
+
+    baseUnit: ingredient.unit
+  }))
+);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -548,17 +596,10 @@ app.get('/api/purchase-orders/:id/lines', async (req, res) => {
 
 app.post('/api/purchase-orders/:id/lines', async (req, res) => {
   const { id } = req.params;
+  const { ingredientId, quantity, unitPrice } = req.body;
 
-  const {
-    itemCode,
-    itemName,
-    quantity,
-    unit,
-    unitPrice
-  } = req.body;
-
-  if (!itemName?.trim()) {
-    return res.status(400).json({ error: 'Item name is required' });
+  if (!ingredientId) {
+    return res.status(400).json({ error: 'Ingredient is required' });
   }
 
   const qty = Number(quantity);
@@ -568,13 +609,23 @@ app.post('/api/purchase-orders/:id/lines', async (req, res) => {
     return res.status(400).json({ error: 'Quantity must be greater than zero' });
   }
 
-  const lineTotal = qty * price;
-
   try {
+    const ingredient = await get(
+      `SELECT * FROM ingredients WHERE id = ?`,
+      [ingredientId]
+    );
+
+    if (!ingredient) {
+      return res.status(404).json({ error: 'Ingredient not found' });
+    }
+
+    const lineTotal = qty * price;
+
     const result = await run(
       `
       INSERT INTO purchase_order_lines (
         purchaseOrderId,
+        ingredientId,
         itemCode,
         itemName,
         quantity,
@@ -582,23 +633,21 @@ app.post('/api/purchase-orders/:id/lines', async (req, res) => {
         unitPrice,
         lineTotal
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         id,
-        itemCode || null,
-        itemName,
+        ingredient.id,
+        ingredient.code,
+        ingredient.name,
         qty,
-        unit || null,
+        ingredient.unit,
         price,
         lineTotal
       ]
     );
 
-    res.json({
-      ok: true,
-      id: result.lastID
-    });
+    res.json({ ok: true, id: result.lastID });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

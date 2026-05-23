@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 const API = "/api";
 
 function PurchaseOrdersPage() {
+  const [ingredients, setIngredients] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -13,13 +14,17 @@ function PurchaseOrdersPage() {
   });
   const [selectedPo, setSelectedPo] = useState(null);
     const [poLines, setPoLines] = useState([]);
-    const [lineForm, setLineForm] = useState({
-     itemCode: "",
-    itemName: "",
-    quantity: "",
-    unit: "",
-     unitPrice: "",
+const [lineForm, setLineForm] = useState({
+  ingredientId: "",
+  quantity: "",
+  unitPrice: "",
 });
+
+const loadIngredients = async () => {
+  const res = await fetch(`${API}/ingredients`);
+  const data = await res.json();
+  setIngredients(data);
+};
 
   const loadPurchaseOrders = async () => {
     const res = await fetch(`${API}/purchase-orders`);
@@ -36,6 +41,7 @@ function PurchaseOrdersPage() {
   useEffect(() => {
     loadPurchaseOrders();
     loadSuppliers();
+    loadIngredients();
   }, []);
 
   const updateForm = (key, value) => {
@@ -101,10 +107,8 @@ const updateLineForm = (key, value) => {
 
 const resetLineForm = () => {
   setLineForm({
-    itemCode: "",
-    itemName: "",
+    ingredientId: "",
     quantity: "",
-    unit: "",
     unitPrice: "",
   });
 };
@@ -112,10 +116,10 @@ const resetLineForm = () => {
 const addLine = async () => {
   if (!selectedPo) return;
 
-  if (!lineForm.itemName.trim()) {
-    alert("Item name is required");
-    return;
-  }
+if (!lineForm.ingredientId) {
+  alert("Ingredient is required");
+  return;
+}
 
   if (!lineForm.quantity || Number(lineForm.quantity) <= 0) {
     alert("Quantity must be greater than zero");
@@ -278,42 +282,37 @@ const deleteLine = async (line) => {
     <h3 className="section-title">Add Line</h3>
 
     <div className="form-grid">
-      <input
-        placeholder="Item Code"
-        value={lineForm.itemCode}
-        onChange={(e) => updateLineForm("itemCode", e.target.value)}
-      />
+<select
+  value={lineForm.ingredientId}
+  onChange={(e) => updateLineForm("ingredientId", e.target.value)}
+>
+  <option value="">Select ingredient</option>
 
-      <input
-        placeholder="Item Name *"
-        value={lineForm.itemName}
-        onChange={(e) => updateLineForm("itemName", e.target.value)}
-      />
+  {ingredients.map((ingredient) => (
+    <option key={ingredient.id} value={ingredient.id}>
+      {ingredient.code} - {ingredient.name} ({ingredient.unit})
+    </option>
+  ))}
+</select>
 
-      <input
-        type="number"
-        placeholder="Quantity *"
-        value={lineForm.quantity}
-        onChange={(e) => updateLineForm("quantity", e.target.value)}
-      />
+<input
+  type="number"
+  placeholder="Quantity *"
+  value={lineForm.quantity}
+  onChange={(e) => updateLineForm("quantity", e.target.value)}
+/>
 
-      <input
-        placeholder="Unit"
-        value={lineForm.unit}
-        onChange={(e) => updateLineForm("unit", e.target.value)}
-      />
-
-      <input
-        type="number"
-        placeholder="Unit Price"
-        value={lineForm.unitPrice}
-        onChange={(e) => updateLineForm("unitPrice", e.target.value)}
-      />
+<input
+  type="number"
+  placeholder="Unit Price"
+  value={lineForm.unitPrice}
+  onChange={(e) => updateLineForm("unitPrice", e.target.value)}
+/>
     </div>
 
     <div className="page-actions">
       <button className="button-primary" onClick={addLine}>
-        Add Line
+        Add Row
       </button>
 
       <button className="button-secondary" onClick={resetLineForm}>
